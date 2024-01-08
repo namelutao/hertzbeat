@@ -167,6 +167,13 @@ public class ParamDefine {
     private boolean hide = false;
 
     /**
+     * Linkage parameters
+     * 联动参数
+     */
+    @Schema(title = "联动参数", example = "version -> v3", accessMode = READ_WRITE)
+    private String depended;
+
+    /**
      * The creator of this record
      */
     @Schema(title = "The creator of this record", example = "tom", accessMode = READ_ONLY)
