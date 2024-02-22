@@ -21,6 +21,12 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.googlecode.aviator.AviatorEvaluator;
+import com.googlecode.aviator.Expression;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.*;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.dromara.hertzbeat.collector.collect.AbstractCollect;
 import org.dromara.hertzbeat.collector.collect.common.http.CommonHttpClient;
 import org.dromara.hertzbeat.collector.collect.http.promethus.exporter.ExporterParser;
@@ -48,10 +54,6 @@ import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.DigestScheme;
@@ -70,9 +72,7 @@ import org.w3c.dom.NodeList;
 import javax.net.ssl.SSLException;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InterruptedIOException;
+import java.io.*;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -124,7 +124,7 @@ public class HttpCollectImpl extends AbstractCollect {
             // todo 这里直接将InputStream转为了String, 对于prometheus exporter大数据来说, 会生成大对象, 可能会严重影响JVM内存空间
             // todo 方法一、使用InputStream进行解析, 代码改动大; 方法二、手动触发gc, 可以参考dubbo for long i
             String resp = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-            if (resp == null || "".equals(resp)) {
+            if (resp == null || resp.isEmpty()) {
                 log.info("http response entity is empty, status: {}.", statusCode);
             }
             Long responseTime = System.currentTimeMillis() - startTime;
@@ -195,7 +195,7 @@ public class HttpCollectImpl extends AbstractCollect {
         }
         HttpProtocol httpProtocol = metrics.getHttp();
         if (httpProtocol.getUrl() == null
-                    || "".equals(httpProtocol.getUrl())
+                    || httpProtocol.getUrl().isEmpty()
                     || !httpProtocol.getUrl().startsWith(RIGHT_DASH)) {
             httpProtocol.setUrl(httpProtocol.getUrl() == null ? RIGHT_DASH : RIGHT_DASH + httpProtocol.getUrl().trim());
         }
@@ -494,7 +494,17 @@ public class HttpCollectImpl extends AbstractCollect {
         if (params != null && !params.isEmpty()) {
             for (Map.Entry<String, String> param : params.entrySet()) {
                 if (StringUtils.hasText(param.getValue())) {
-                    requestBuilder.addParameter(param.getKey(), param.getValue());
+                    Expression expression;
+                    String paramValue;
+                    try {
+                        expression = AviatorEvaluator.compile(param.getValue(), true);
+                        paramValue = expression.execute().toString();
+                    } catch (Exception e) {
+                        log.error("compile expression error: {}.", e.getMessage());
+                        throw new RuntimeException("compile expression error: " + e.getMessage());
+                    }
+                    requestBuilder.addParameter(param.getKey(), paramValue);
+                    log.debug("add parameter: {} = {}.", param.getKey(), paramValue);
                 }
             }
         }
