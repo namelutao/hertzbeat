@@ -44,9 +44,11 @@ firewall-cmd --zone=public --add-port=2375/tcp --permanent
 firewall-cmd --reload
 ````
 
-
-
-
+**4. Permanently add environment variables**
+```shell
+echo 'export DOCKER_HOST=tcp://127.0.0.1:2375' | sudo tee -a /etc/profile
+source /etc/profile
+````
 
 ### Configuration parameters
 
